@@ -8,12 +8,12 @@
  *     https://developers.google.com/web/fundamentals/primers/service-workers
  */
 
-if (!_flutter) {
+ if (!_flutter) {
   var _flutter = {};
 }
 _flutter.loader = null;
 
-(function() {
+(function () {
   "use strict";
   class FlutterLoader {
     // TODO: Move the below methods to "#private" once supported by all the browsers
@@ -36,7 +36,7 @@ _flutter.loader = null;
         entrypointUrl = "main.dart.js",
         serviceWorker,
       } = (options || {});
-      return this._loadWithServiceWorker(entrypointUrl, serviceWorker);
+      return this._loadEntrypoint(entrypointUrl);
     }
 
     /**
@@ -45,7 +45,7 @@ _flutter.loader = null;
      * the JS <-> Flutter jumps.
      * @param {*} engineInitializer
      */
-    didCreateEngineInitializer = (function(engineInitializer) {
+    didCreateEngineInitializer = (function (engineInitializer) {
       if (typeof this._didCreateEngineInitializerResolve != "function") {
         console.warn("Do not call didCreateEngineInitializer by hand. Start with loadEntrypoint instead.");
       }
@@ -67,76 +67,6 @@ _flutter.loader = null;
       }
 
       return this._scriptLoaded;
-    }
-
-    _waitForServiceWorkerActivation(serviceWorker, entrypointUrl) {
-      if (!serviceWorker || serviceWorker.state == "activated") {
-        if (!serviceWorker) {
-          console.warn("Cannot activate a null service worker. Falling back to plain <script> tag.");
-        } else {
-          console.debug("Service worker already active.");
-        }
-        return this._loadEntrypoint(entrypointUrl);
-      }
-      return new Promise((resolve, _) => {
-        serviceWorker.addEventListener("statechange", () => {
-          if (serviceWorker.state == "activated") {
-            console.debug("Installed new service worker.");
-            resolve(this._loadEntrypoint(entrypointUrl));
-          }
-        });
-      });
-    }
-
-    _loadWithServiceWorker(entrypointUrl, serviceWorkerOptions) {
-      if (!("serviceWorker" in navigator) || serviceWorkerOptions == null) {
-        console.warn("Service worker not supported (or configured). Falling back to plain <script> tag.", serviceWorkerOptions);
-        return this._loadEntrypoint(entrypointUrl);
-      }
-
-      const {
-        serviceWorkerVersion,
-        timeoutMillis = 4000,
-      } = serviceWorkerOptions;
-
-      let serviceWorkerUrl = "flutter_service_worker.js?v=" + serviceWorkerVersion;
-      let loader = navigator.serviceWorker.register(serviceWorkerUrl)
-          .then((reg) => {
-            if (!reg.active && (reg.installing || reg.waiting)) {
-              // No active web worker and we have installed or are installing
-              // one for the first time. Simply wait for it to activate.
-              let sw = reg.installing || reg.waiting;
-              return this._waitForServiceWorkerActivation(sw, entrypointUrl);
-            } else if (!reg.active.scriptURL.endsWith(serviceWorkerVersion)) {
-              // When the app updates the serviceWorkerVersion changes, so we
-              // need to ask the service worker to update.
-              console.debug("New service worker available.");
-              return reg.update().then((reg) => {
-                console.debug("Service worker updated.");
-                let sw = reg.installing || reg.waiting || reg.active;
-                return this._waitForServiceWorkerActivation(sw, entrypointUrl);
-              });
-            } else {
-              // Existing service worker is still good.
-              console.debug("Loading app from service worker.");
-              return this._loadEntrypoint(entrypointUrl);
-            }
-          });
-
-      // Timeout race promise
-      let timeout;
-      if (timeoutMillis > 0) {
-        timeout = new Promise((resolve, _) => {
-          setTimeout(() => {
-            if (!this._scriptLoaded) {
-              console.warn("Failed to load app from service worker. Falling back to plain <script> tag.");
-              resolve(this._loadEntrypoint(entrypointUrl));
-            }
-          }, timeoutMillis);
-        });
-      }
-
-      return Promise.race([loader, timeout]);
     }
   }
 
